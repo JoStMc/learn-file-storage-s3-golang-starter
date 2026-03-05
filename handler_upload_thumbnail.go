@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"time"
@@ -42,13 +43,6 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	defer file.Close()
 
-	mediaType := header.Header.Get("Content-Type")
-	if mediaType == "" {
-		respondWithError(w, http.StatusBadRequest, "Missing Content-Type for thumbnail", nil)
-		return
-	}
-
-
 	metadata, err := cfg.db.GetVideo(videoID)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Unable to get video", err)
@@ -59,12 +53,17 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	} 
 
-	contentType := header.Header.Get("Content-Type")
-	if mediaType == "" {
-	    respondWithError(w, http.StatusBadRequest, "Missing content", nil)
+	mediatype, _, err := mime.ParseMediaType(header.Header.Get("Content-Type"))
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Unable to parse media type", err)
+		return
+	}
+	if mediatype != "image/png" && mediatype != "image/jpeg" {
+	    respondWithError(w, http.StatusBadRequest, "Invalid mediatype", nil)
+		return
 	} 
 
-	assetPath := getAssetPath(videoID, contentType)
+	assetPath := getAssetPath(videoID, mediatype)
 	savePath := cfg.getAssetSavePath(assetPath)
 
 	fileLocation, err := os.Create(savePath)
