@@ -97,12 +97,24 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "Unable to reset temp file's pointer", err)
 		return
 	}
+	processedVideoName, err := processVideoForFastStart(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to process video", err)
+		return
+	}
+	processedVideo, err := os.Open(processedVideoName)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to open processed video", err)
+		return
+	}
+	defer os.Remove(processedVideo.Name())
+	defer processedVideo.Close()
 
 	key := prefix + getAssetPath(mediatype)
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket: aws.String(cfg.s3Bucket),
 		Key: aws.String(key),
-		Body: tempFile,
+		Body: processedVideo,
 		ContentType: aws.String(mediatype),
 	})
 	if err != nil {
