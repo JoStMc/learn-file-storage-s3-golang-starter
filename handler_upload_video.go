@@ -76,13 +76,29 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	aspectRatio, err := getVideoAspectRatio(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to get video aspect ratio", err)
+		return
+	}
+
+	var prefix string
+	switch aspectRatio {
+		case "16:9":
+			prefix = "landscape/"
+		case "9:16":
+			prefix = "portrait/"
+		default:
+			prefix = "other/"
+	}
+
 	_, err = tempFile.Seek(0, io.SeekStart)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to reset temp file's pointer", err)
 		return
 	}
 
-	key := getAssetPath(mediatype)
+	key := prefix + getAssetPath(mediatype)
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket: aws.String(cfg.s3Bucket),
 		Key: aws.String(key),
@@ -93,6 +109,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "Unable to put S3 object", err)
 		return
 	}
+
 
 	videoURL := cfg.getObjectURL(key)
 	video.VideoURL = &videoURL

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -43,3 +46,38 @@ func mediaTypeToExt(mediaType string) string {
 	}
 	return "." + parts[1]
 }
+
+
+type ffprobeOutput struct {
+	Streams []struct {
+		Width  int `json:"width,omitempty"`
+		Height int `json:"height,omitempty"`
+	}
+}
+
+func getVideoAspectRatio(filePath string) (string, error) {
+	cmd := exec.Command("ffprobe", "-v", "error", "-print_format", "json", "-show_streams", filePath)
+
+	var b bytes.Buffer
+	cmd.Stdout = &b
+
+
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	var output ffprobeOutput
+	if err := json.Unmarshal(b.Bytes(), &output); err != nil {
+	    return "", err
+	} 
+
+
+	w, h := output.Streams[0].Width, output.Streams[0].Height
+	if 9*w/16 == h {
+		return "16:9", nil
+	} else if 16*w/9 == h {
+		return "9:16", nil
+	} 
+	return "other", nil
+} 
