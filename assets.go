@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -11,10 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
 )
 
 func (cfg apiConfig) ensureAssetsDir() error {
@@ -37,7 +32,7 @@ func (cfg apiConfig) getAssetSavePath(assetPath string) string {
 }
 
 func (cfg apiConfig) getObjectURL(key string) string {
-	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, key)
+	return fmt.Sprintf("https://%s/%s", cfg.s3CfDistribution, key)
 }
 
 func (cfg apiConfig) getAssetURL(assetPath string) string {
@@ -91,31 +86,4 @@ func getVideoAspectRatio(filePath string) (string, error) {
 func processVideoForFastStart(filePath string) (string, error) {
 	output := filePath + ".processing"
 	return output, exec.Command("ffmpeg", "-i", filePath, "-c", "copy", "-movflags", "faststart", "-f", "mp4", output).Run()
-} 
-
-func generatePresignedURL(s3Client *s3.Client, bucket, key string, expireTime time.Duration) (string, error) {
-	presignClient := s3.NewPresignClient(s3Client, s3.WithPresignExpires(expireTime))
-	req, err := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
-		Bucket: &bucket,
-		Key: &key,
-	})
-	if err != nil {
-	    return "", err
-	} 
-	return req.URL, nil
-} 
-
-func (cfg *apiConfig) dbVideoToSignedVideo(video database.Video) (database.Video, error) {
-	if video.VideoURL == nil {
-	    return video, nil
-	} 
-	splitURL := strings.Split(*video.VideoURL, ",")
-	bucket, key := splitURL[0], splitURL[1]
-
-	newURL, err := generatePresignedURL(cfg.s3Client, bucket, key, 10 * time.Minute)
-	if err != nil {
-	    return database.Video{}, err
-	} 
-	video.VideoURL = &newURL
-	return video, nil
 } 
